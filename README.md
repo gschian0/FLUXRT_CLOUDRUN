@@ -1,5 +1,20 @@
 # Flux Real-Time (FluxRT)
 
+This repository is the cloud-focused fork for deployment and orchestration work.
+
+Current repo intent:
+- Keep FluxRT runtime behavior stable (notably the stream demo flow on port 7861)
+- Add Cloud Run control-plane planning and GPU worker deployment design
+- Add RTMP fanout and moderation architecture in staged phases
+
+Planning documents in this fork:
+- `CLOUDRUN_GPU_RTMP_IMPLEMENTATION_PLAN.md`
+- `CLOUDRUN_IMPLEMENTATION_CHECKLIST.md`
+
+Recommended branch usage:
+- `main`: stable baseline for backup and release checkpoints
+- `streaming`: active integration work
+
 Real-time **FLUX.2** stream editing pipeline optimized for consumer GPUs.
 
 FluxRT enables low-latency transformation of **webcam stream** or **video** with **interactive prompt updates** and full **reference image conditioning** support.
