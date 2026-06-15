@@ -1,4 +1,5 @@
 import argparse
+import subprocess
 import threading
 import time
 
@@ -29,6 +30,52 @@ stream_status = "idle"
 stream_status_lock = threading.Lock()
 process_frame_counter = 0
 stream_config_path = "configs/stream_demo_config.json"
+
+udp_writer = None
+udp_writer_lock = threading.Lock()
+udp_writer_dims = (0, 0)
+
+
+def _get_udp_writer(width, height, fps=25):
+    global udp_writer, udp_writer_dims
+    with udp_writer_lock:
+        if udp_writer is not None and udp_writer_dims != (width, height):
+            udp_writer.terminate()
+            udp_writer = None
+        
+        if udp_writer is None:
+            cmd = [
+                'ffmpeg',
+                '-hide_banner', '-loglevel', 'error',
+                '-y',
+                '-f', 'rawvideo',
+                '-vcodec', 'rawvideo',
+                '-pix_fmt', 'bgr24',
+                '-s', f'{width}x{height}',
+                '-r', str(fps),
+                '-i', '-',
+                '-c:v', 'libx264',
+                '-preset', 'veryfast',
+                '-tune', 'zerolatency',
+                '-pix_fmt', 'yuv420p',
+                '-f', 'mpegts',
+                'udp://127.0.0.1:5000?pkt_size=1316'
+            ]
+            udp_writer = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+            udp_writer_dims = (width, height)
+        return udp_writer
+
+
+def _write_to_udp(frame, fps=25):
+    if frame is None:
+        return
+    h, w = frame.shape[:2]
+    writer = _get_udp_writer(w, h, fps)
+    if writer and writer.stdin:
+        try:
+            writer.stdin.write(frame.tobytes())
+        except Exception:
+            pass
 
 
 def get_processor():
@@ -180,6 +227,7 @@ def _local_video_loop(video_path: str, video_id: int):
             start = time.time()
             try:
                 input_frame, processed = process_frame(frame)
+                _write_to_udp(processed, fps=int(fps))
             except Exception as exc:
                 set_status(f"local processing error: {exc}")
                 time.sleep(0.1)
@@ -236,6 +284,7 @@ def _stream_loop(stream_url: str, video_id: int):
             start = time.time()
             try:
                 input_frame, processed = process_frame(frame)
+                _write_to_udp(processed, fps=25)
             except Exception as exc:
                 set_status(f"stream processing error: {exc}")
                 time.sleep(0.1)
@@ -328,6 +377,7 @@ def process_webcam(frame):
         return None
 
     _, processed = process_frame(to_bgr(frame))
+    _write_to_udp(processed, fps=25)
     return to_rgb(processed)
 
 
